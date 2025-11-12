@@ -10,7 +10,7 @@
 - **MySQL 8.0**
 - **Redis**
 - **Kafka**
-- **Spring Data JPA + Hibernate + QueryDSL**
+- **Spring Data JPA**
 - **Flyway** (Database Migration)
 
 ## 프로젝트 구조
