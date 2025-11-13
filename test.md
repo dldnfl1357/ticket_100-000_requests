@@ -139,8 +139,17 @@ docker exec reservation-mysql mysql -uroot -ppassword reservation \
       FROM ticket
       WHERE performance_id = 1;"
 ```
-
 **기대값**: `50000` (각 멤버가 1개씩 예약)
+
+```sql
+SELECT
+    MIN(created_at) AS min_time,
+    MAX(created_at) AS max_time,
+    TIMESTAMPDIFF(SECOND, MIN(created_at), MAX(created_at)) AS diff_seconds
+  FROM ticket
+  WHERE performance_id = 1;
+```
+**기대값**: `3` (가장 먼저 들어온 티켓과 늦게 들어온 티켓의 생성 시간의 차가 3초 이내!)
 
 ### 2. Redis 데이터 검증
 
