@@ -1,5 +1,3 @@
-#!/bin/bash
-
 # mysql ticket 테이블에서 삭제
 echo "1. [Mysql] ticket에서 performance_id가 1인 데이터 전체 삭제..."
 docker exec reservation-mysql mysql \
