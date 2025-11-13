@@ -37,13 +37,13 @@ public class TicketReservationService {
      *
      * @param request 예약 요청 정보
      */
-    @Transactional
+    // @Transactional - DB write가 없어서 제거
     public void reserveTicket(TicketReservationRequestDto request) {
         Long performanceId = request.getPerformanceId();
         Integer ticketNumber = request.getTicketNumber();
         Long memberId = request.getMemberId();
 
-        log.info("티켓 예약 요청 - performanceId: {}, ticketNumber: {}, memberId: {}",
+        log.debug("티켓 예약 요청 - performanceId: {}, ticketNumber: {}, memberId: {}",
                 performanceId, ticketNumber, memberId);
 
         // Redis Bitmap 키 생성
@@ -100,7 +100,7 @@ public class TicketReservationService {
         try {
             String message = objectMapper.writeValueAsString(request);
             kafkaTemplate.send(ROLLBACK_TOPIC, message);
-            log.info("롤백 이벤트 발행 완료 - topic: {}, message: {}", ROLLBACK_TOPIC, message);
+            log.debug("롤백 이벤트 발행 완료 - topic: {}, message: {}", ROLLBACK_TOPIC, message);
         } catch (JsonProcessingException e) {
             log.error("롤백 이벤트 발행 실패 - request: {}", request, e);
         }
