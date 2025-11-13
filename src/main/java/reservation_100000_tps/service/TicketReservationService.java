@@ -68,15 +68,14 @@ public class TicketReservationService {
             redisTemplate.opsForValue().setBit(bitmapKey, bitIndex, true);
 
             // MySQL에 티켓 생성
-            Ticket ticket = Ticket.builder()
-                    .ticketNumber(ticketNumber)
-                    .performanceId(performanceId)
-                    .memberId(memberId)
-                    .build();
+            //Ticket ticket = Ticket.builder()
+            //        .ticketNumber(ticketNumber)
+            //        .performanceId(performanceId)
+            //        .memberId(memberId)
+            //        .build();
+            //ticketRepository.save(ticket);
 
-            ticketRepository.save(ticket);
-
-            log.info("티켓 예약 성공 - performanceId: {}, ticketNumber: {}, memberId: {}",
+            log.debug("티켓 예약 성공 - performanceId: {}, ticketNumber: {}, memberId: {}",
                     performanceId, ticketNumber, memberId);
 
         } catch (Exception e) {
