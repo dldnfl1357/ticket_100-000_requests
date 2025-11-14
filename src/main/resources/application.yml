@@ -75,11 +75,11 @@ spring:
 logging:
   level:
     root: INFO
-    reservation_100000_tps: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-    org.springframework.kafka: WARN
-    org.apache.kafka: WARN
+    reservation_100000_tps: INFO
+    org.hibernate.SQL: INFO
+    org.hibernate.type.descriptor.sql.BasicBinder: INFO
+    org.springframework.kafka: INFO
+    org.apache.kafka: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
