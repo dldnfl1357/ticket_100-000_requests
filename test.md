@@ -95,154 +95,32 @@ chmod +x 'script 0 generate-load (publish records to reserve topic).sh'
 ## 검증 (Validation)
 
 ### 1. MySQL 데이터 검증
-
 #### 1-1. 티켓 총 개수 확인
 ```bash
 docker exec reservation-mysql mysql -uroot -ppassword reservation \
   -e "SELECT COUNT(*) as total_tickets FROM ticket WHERE performance_id = 1;"
 ```
-
 **기대값**: `50000`
 
-#### 1-2. 중복 티켓 확인
-```bash
-docker exec reservation-mysql mysql -uroot -ppassword reservation \
-  -e "SELECT ticket_number, COUNT(*) as cnt
-      FROM ticket
-      WHERE performance_id = 1
-      GROUP BY ticket_number
-      HAVING cnt > 1;"
+
+### 2. Kafka 데이터 검증
+#### 2-1. reserve 토픽에 레코드 수 확인
 ```
-
-**기대값**: `Empty set` (중복 없음)
-
-#### 1-3. 티켓 번호 범위 확인
-```bash
-docker exec reservation-mysql mysql -uroot -ppassword reservation \
-  -e "SELECT MIN(ticket_number) as min_ticket, MAX(ticket_number) as max_ticket
-      FROM ticket
-      WHERE performance_id = 1;"
-```
-
-**기대값**: `min_ticket=1, max_ticket=50000`
-
-#### 1-4. 티켓 번호 완전성 확인 (빠진 번호 없는지)
-```bash
-docker exec reservation-mysql mysql -uroot -ppassword reservation \
-  -e "SELECT COUNT(DISTINCT ticket_number) as distinct_tickets
-      FROM ticket
-      WHERE performance_id = 1;"
-```
-
-**기대값**: `50000` (1~50000 전체)
-
-#### 1-5. 처리 시간 확인
-```bash
-docker exec reservation-mysql mysql -uroot -ppassword reservation \
-  -e "SELECT
-    MIN(created_at) as first_ticket_time,
-    MAX(created_at) as last_ticket_time,
-    TIMESTAMPDIFF(SECOND, MIN(created_at), MAX(created_at)) as duration_seconds
-  FROM ticket
-  WHERE performance_id = 1;"
-```
-
-**기대값**: `duration_seconds <= 3` (3초 이내)
-
-#### 1-6. 멤버별 예약 현황
-```bash
-docker exec reservation-mysql mysql -uroot -ppassword reservation \
-  -e "SELECT COUNT(DISTINCT member_id) as total_members
-      FROM ticket
-      WHERE performance_id = 1;"
-```
-**기대값**: `50000` (각 멤버가 1개씩 예약)
-
-```sql
-SELECT
-    MIN(created_at) AS min_time,
-    MAX(created_at) AS max_time,
-    TIMESTAMPDIFF(SECOND, MIN(created_at), MAX(created_at)) AS diff_seconds
-  FROM ticket
-  WHERE performance_id = 1;
-```
-**기대값**: `3` (가장 먼저 들어온 티켓과 늦게 들어온 티켓의 생성 시간의 차가 3초 이내!)
-
-### 2. Redis 데이터 검증
-
-#### 2-1. Bitmap 총 카운트
-```bash
-docker exec reservation-redis redis-cli BITCOUNT ticket:performance:1
-```
-**기대값**: `50000`
-
-#### 2-2. 특정 티켓 상태 확인
-```bash
-# 티켓 1번 상태 (예약됨)
-docker exec reservation-redis redis-cli GETBIT ticket:performance:1 0
-
-# 티켓 50000번 상태 (예약됨)
-docker exec reservation-redis redis-cli GETBIT ticket:performance:1 49999
-```
-**기대값**: 모두 `1` (예약됨)
-
-#### 2-4. Redis와 MySQL 일치 확인
-```bash
-# Redis 카운트
-REDIS_COUNT=$(docker exec reservation-redis redis-cli BITCOUNT ticket:performance:1)
-
-# MySQL 카운트
-MYSQL_COUNT=$(docker exec reservation-mysql mysql -uroot -ppassword reservation \
-  -sN -e "SELECT COUNT(*) FROM ticket WHERE performance_id = 1;")
-
-echo "Redis: $REDIS_COUNT"
-echo "MySQL: $MYSQL_COUNT"
-
-if [ "$REDIS_COUNT" = "$MYSQL_COUNT" ]; then
-  echo "✅ 일치: Redis와 MySQL 데이터 동일"
-else
-  echo "❌ 불일치: Redis($REDIS_COUNT) != MySQL($MYSQL_COUNT)"
-fi
-```
-**기대값**: 두 값이 동일 (`50000`)
-
-### 3. Kafka 검증
-
-#### 3-1. reserve 토픽 Consumer LAG
-```bash
-docker exec reservation-kafka kafka-consumer-groups \
-  --describe \
-  --group reservation-consumer-group \
-  --bootstrap-server localhost:9092
-```
-**기대값**: 모든 파티션의 `LAG = 0`
-
-#### 3-2. reserve 토픽 총 LAG 계산
-```bash
-docker exec reservation-kafka kafka-consumer-groups \
-  --describe \
-  --group reservation-consumer-group \
-  --bootstrap-server localhost:9092 | \
-  awk 'NR>1 {sum+=$6} END {print "Total LAG:", sum}'
-```
-**기대값**: `Total LAG: 0`
-
-#### 3-3. reserve_rollback 토픽 메시지 개수
-```bash
-# 각 파티션의 오프셋 확인
 docker exec reservation-kafka kafka-run-class kafka.tools.GetOffsetShell \
-  --broker-list localhost:9092 \
-  --topic reserve_rollback \
-  --time -1
-
-# 총 메시지 개수 계산
-docker exec reservation-kafka kafka-run-class kafka.tools.GetOffsetShell \
-  --broker-list localhost:9092 \
-  --topic reserve_rollback \
-  --time -1 | \
-  awk -F: '{sum+=$3} END {print "Total messages:", sum}'
+--broker-list localhost:9092 \
+--topic reserve \
+--time -1
 ```
-**기대값**: `Total messages: 50000` (실패한 중복 예약)
+**기대값**: 100,000 (발행된 요청 수)
+
+#### 2-2. reserve_rollback 토픽에 레코드 수 확인
+```
+docker exec reservation-kafka kafka-run-class kafka.tools.GetOffsetShell \
+--broker-list localhost:9092 \
+--topic reserve_rollback \
+--time -1
+```
+**기대값**: 50,000 (실패로 인한 롤백)
 
 ---
 

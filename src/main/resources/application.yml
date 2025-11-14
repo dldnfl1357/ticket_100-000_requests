@@ -108,8 +108,8 @@ spring:
 
 logging:
   level:
-    root: DEBUG
-    reservation_100000_tps: DEBUG
+    root: INFO
+    reservation_100000_tps: INFO
 
 ---
 # Production Profile

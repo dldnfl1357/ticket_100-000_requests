@@ -58,7 +58,7 @@ public class TicketReservationService {
 
             if (Boolean.TRUE.equals(isOccupied)) {
                 // 이미 점유된 티켓인 경우 예약 실패
-                log.warn("티켓 예약 실패 - 이미 점유된 티켓 - performanceId: {}, ticketNumber: {}",
+                log.debug("티켓 예약 실패 - 이미 점유된 티켓 - performanceId: {}, ticketNumber: {}",
                         performanceId, ticketNumber);
                 publishRollbackEvent(request);
                 return;
@@ -80,7 +80,7 @@ public class TicketReservationService {
 
         } catch (Exception e) {
             // 예외 발생 시 롤백 이벤트 발행
-            log.error("티켓 예약 중 오류 발생 - performanceId: {}, ticketNumber: {}",
+            log.debug("티켓 예약 중 오류 발생 - performanceId: {}, ticketNumber: {}",
                     performanceId, ticketNumber, e);
 
             // Redis Bitmap 롤백 (점유 상태를 false로 변경)
@@ -102,7 +102,7 @@ public class TicketReservationService {
             kafkaTemplate.send(ROLLBACK_TOPIC, message);
             log.debug("롤백 이벤트 발행 완료 - topic: {}, message: {}", ROLLBACK_TOPIC, message);
         } catch (JsonProcessingException e) {
-            log.error("롤백 이벤트 발행 실패 - request: {}", request, e);
+            log.debug("롤백 이벤트 발행 실패 - request: {}", request, e);
         }
     }
 }

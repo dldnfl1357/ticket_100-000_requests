@@ -15,11 +15,11 @@ echo "[Redis] ticket:performance bitmaps 삭제 완료!"
 
 # reserve 토픽 삭제 후 재생성
 echo "3. [Kafka] reserve 토픽 재생성..."
+sleep 2
 docker exec reservation-kafka kafka-topics \
   --delete \
   --topic reserve \
   --bootstrap-server localhost:9092 2>/dev/null || true
-
 sleep 2
 
 docker exec reservation-kafka kafka-topics \
@@ -30,14 +30,15 @@ docker exec reservation-kafka kafka-topics \
   --replication-factor 1
 
 echo "[Kafka] reserve 토픽 삭제 완료!"
+sleep 2
 
 # reserve_rollback 토픽 삭제 후 재생성
 echo "4. [Kafka] reserve_rollback 토픽 재생성..."
+sleep 2
 docker exec reservation-kafka kafka-topics \
   --delete \
   --topic reserve_rollback \
   --bootstrap-server localhost:9092 2>/dev/null || true
-
 sleep 2
 
 docker exec reservation-kafka kafka-topics \
@@ -46,5 +47,5 @@ docker exec reservation-kafka kafka-topics \
   --bootstrap-server localhost:9092 \
   --partitions 3 \
   --replication-factor 1
-
+sleep 2
 echo "[Kafka] reserve_rollback 토픽 삭제 완료!"

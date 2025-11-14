@@ -77,7 +77,7 @@ public class TicketReservationConsumer {
             }
 
         } catch (Exception e) {
-            log.error("Kafka 메시지 처리 실패 - topic: reserve, message: {}", message, e);
+            log.debug("Kafka 메시지 처리 실패 - topic: reserve, message: {}", message, e);
             // 에러 발생 시에도 acknowledge하여 메시지 재처리 방지
             // (이미 서비스 레이어에서 롤백 이벤트를 발행했으므로)
             acknowledgment.acknowledge();
