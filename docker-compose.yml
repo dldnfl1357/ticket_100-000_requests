@@ -28,7 +28,31 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
-    command: redis-server --maxmemory 4gb --maxmemory-policy allkeys-lru
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: >
+      sh -c "
+          echo 'Checking THP status...' &&
+          cat /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || echo 'THP check failed - continuing anyway' &&
+          echo never > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || echo 'Cannot disable THP - need privileged mode' &&
+          echo never > /sys/kernel/mm/transparent_hugepage/defrag 2>/dev/null || true &&
+          redis-server 
+                --maxmemory 8gb 
+                --maxmemory-policy allkeys-lru
+                --appendonly no
+                --tcp-backlog 511
+                --timeout 0
+                --tcp-keepalive 300
+                --databases 1
+                --save ''
+              "
+    privileged: true
+    restart: unless-stopped
+    sysctls:
+      - net.core.somaxconn=1024
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     deploy:
       resources:
         limits:
