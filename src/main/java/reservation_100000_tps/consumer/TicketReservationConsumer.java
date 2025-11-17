@@ -26,7 +26,7 @@ public class TicketReservationConsumer {
 
     private Long startTime = null;
     private final AtomicInteger processedCount = new AtomicInteger(0);
-    private static final int TARGET_COUNT = 10000;
+    private static final int TARGET_COUNT = 100000;
 
     /**
      * reserve 토픽 메시지 처리
@@ -43,8 +43,6 @@ public class TicketReservationConsumer {
                 processedCount.set(0);
             }
 
-            log.debug("Kafka 메시지 수신 - topic: reserve, message: {}", message);
-
             // JSON 메시지를 DTO로 변환
             TicketReservationRequestDto request = objectMapper.readValue(
                     message,
@@ -56,8 +54,6 @@ public class TicketReservationConsumer {
 
             // 수동 커밋
             acknowledgment.acknowledge();
-
-            log.debug("Kafka 메시지 처리 완료 - topic: reserve, message: {}", message);
 
             // 처리 완료 카운트
             int count = processedCount.incrementAndGet();
@@ -77,9 +73,7 @@ public class TicketReservationConsumer {
             }
 
         } catch (Exception e) {
-            log.debug("Kafka 메시지 처리 실패 - topic: reserve, message: {}", message, e);
             // 에러 발생 시에도 acknowledge하여 메시지 재처리 방지
-            // (이미 서비스 레이어에서 롤백 이벤트를 발행했으므로)
             acknowledgment.acknowledge();
         }
     }

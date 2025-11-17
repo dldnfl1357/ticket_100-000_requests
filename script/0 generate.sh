@@ -11,4 +11,5 @@ done | docker exec -i reservation-kafka kafka-console-producer \
   --bootstrap-server localhost:9092
 
 END_TIME=$(date +%s)
+echo "완료 시간: $(date '+%Y-%m-%d %H:%M:%S')"
 echo "메시지 발행 완료 (소요 시간: $((END_TIME - START_TIME))초)"

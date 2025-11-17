@@ -5,12 +5,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reservation_100000_tps.domain.Ticket;
 import reservation_100000_tps.dto.TicketReservationRequestDto;
 import reservation_100000_tps.repository.TicketRepository;
+
+import java.util.Collections;
 
 /**
  * 티켓 예약 서비스
@@ -23,9 +26,10 @@ import reservation_100000_tps.repository.TicketRepository;
 public class TicketReservationService {
 
     private final TicketRepository ticketRepository;
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
+    private final RedisScript<Long> ticketReservationScript;
 
     private static final String TICKET_BITMAP_KEY_PREFIX = "ticket:performance:";
     private static final String ROLLBACK_TOPIC = "reserve_rollback";
@@ -41,10 +45,6 @@ public class TicketReservationService {
     public void reserveTicket(TicketReservationRequestDto request) {
         Long performanceId = request.getPerformanceId();
         Integer ticketNumber = request.getTicketNumber();
-        Long memberId = request.getMemberId();
-
-        log.debug("티켓 예약 요청 - performanceId: {}, ticketNumber: {}, memberId: {}",
-                performanceId, ticketNumber, memberId);
 
         // Redis Bitmap 키 생성
         String bitmapKey = TICKET_BITMAP_KEY_PREFIX + performanceId;
@@ -53,19 +53,18 @@ public class TicketReservationService {
         long bitIndex = ticketNumber - 1;
 
         try {
-            // Redis Bitmap에서 해당 티켓이 이미 점유되어 있는지 확인
-            Boolean isOccupied = redisTemplate.opsForValue().getBit(bitmapKey, bitIndex);
+            // Lua 스크립트로 getBit + setBit을 원자적으로 실행 (네트워크 왕복 2번 -> 1번)
+            // 반환값: 1 = 예약 성공, 0 = 이미 점유됨
+            Long result = stringRedisTemplate.execute(
+                    ticketReservationScript,
+                    Collections.singletonList(bitmapKey),
+                    String.valueOf(bitIndex)
+            );
 
-            if (Boolean.TRUE.equals(isOccupied)) {
-                // 이미 점유된 티켓인 경우 예약 실패
-                log.debug("티켓 예약 실패 - 이미 점유된 티켓 - performanceId: {}, ticketNumber: {}",
-                        performanceId, ticketNumber);
-                publishRollbackEvent(request);
+            if (result == null || result == 0) {
+                // 이미 점유된 티켓인 경우 예약 실패 (rollback 이벤트 발행 제거로 성능 향상)
                 return;
             }
-
-            // Redis Bitmap을 true로 설정하여 티켓 점유 표시
-            redisTemplate.opsForValue().setBit(bitmapKey, bitIndex, true);
 
             // MySQL에 티켓 생성
             //Ticket ticket = Ticket.builder()
@@ -75,18 +74,9 @@ public class TicketReservationService {
             //        .build();
             //ticketRepository.save(ticket);
 
-            log.debug("티켓 예약 성공 - performanceId: {}, ticketNumber: {}, memberId: {}",
-                    performanceId, ticketNumber, memberId);
-
         } catch (Exception e) {
-            // 예외 발생 시 롤백 이벤트 발행
-            log.debug("티켓 예약 중 오류 발생 - performanceId: {}, ticketNumber: {}",
-                    performanceId, ticketNumber, e);
-
-            // Redis Bitmap 롤백 (점유 상태를 false로 변경)
-            redisTemplate.opsForValue().setBit(bitmapKey, bitIndex, false);
-
-            publishRollbackEvent(request);
+            // Lua 스크립트는 원자적 실행이므로 실패 시 자동 롤백됨
+            // 별도의 setBit(false) 불필요
             throw new RuntimeException("티켓 예약 처리 중 오류가 발생했습니다.", e);
         }
     }

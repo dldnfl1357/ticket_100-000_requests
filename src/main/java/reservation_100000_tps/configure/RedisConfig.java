@@ -8,6 +8,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
@@ -38,5 +40,37 @@ public class RedisConfig {
 
         template.afterPropertiesSet();
         return template;
+    }
+
+    /**
+     * Lua 스크립트 실행용 StringRedisTemplate
+     *
+     * Lua 스크립트의 KEYS와 ARGV는 모두 String으로 전달되어야 하므로
+     * GenericJackson2JsonRedisSerializer 대신 StringRedisSerializer 사용
+     */
+    @Bean
+    public StringRedisTemplate stringRedisTemplate(RedisConnectionFactory connectionFactory) {
+        return new StringRedisTemplate(connectionFactory);
+    }
+
+    /**
+     * 티켓 예약을 위한 Lua 스크립트
+     *
+     * getBit + setBit을 원자적으로 실행하여 네트워크 왕복 2번 -> 1번으로 최적화
+     *
+     * @return 1: 예약 성공, 0: 이미 점유됨
+     */
+    @Bean
+    public RedisScript<Long> ticketReservationScript() {
+        String script =
+            "local bit = redis.call('getbit', KEYS[1], ARGV[1]) " +
+            "if bit == 0 then " +
+            "    redis.call('setbit', KEYS[1], ARGV[1], 1) " +
+            "    return 1 " +
+            "else " +
+            "    return 0 " +
+            "end";
+
+        return RedisScript.of(script, Long.class);
     }
 }

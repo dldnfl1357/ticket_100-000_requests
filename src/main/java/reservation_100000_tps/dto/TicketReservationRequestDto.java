@@ -1,10 +1,7 @@
 package reservation_100000_tps.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 /**
  * 티켓 예약 요청 DTO
@@ -12,9 +9,11 @@ import lombok.NoArgsConstructor;
  * Kafka reserve 토픽으로 전달되는 예약 요청 정보
  */
 @Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@ToString
 public class TicketReservationRequestDto {
 
     /**
