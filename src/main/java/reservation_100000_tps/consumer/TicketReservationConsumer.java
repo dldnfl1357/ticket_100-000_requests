@@ -9,10 +9,8 @@ import org.springframework.stereotype.Component;
 import reservation_100000_tps.dto.TicketReservationRequestDto;
 import reservation_100000_tps.service.TicketReservationService;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -28,12 +26,11 @@ public class TicketReservationConsumer {
     private final TicketReservationService ticketReservationService;
     private final ObjectMapper objectMapper;
 
-    // I/O 바운드 작업용 ExecutorService (Redis 호출)
-    private final ExecutorService executorService = Executors.newFixedThreadPool(100);
-
     private Long startTime = null;
     private final AtomicInteger processedCount = new AtomicInteger(0);
+    private final AtomicInteger lastLoggedCount = new AtomicInteger(0);
     private static final int TARGET_COUNT = 100000;
+    private static final int LOG_INTERVAL = 10000;
 
     /**
      * reserve 토픽 메시지 배치 처리
@@ -50,32 +47,39 @@ public class TicketReservationConsumer {
                 processedCount.set(0);
             }
 
-            // 배치로 받은 메시지들을 CompletableFuture로 병렬 처리
-            CompletableFuture<?>[] futures = messages.stream()
-                    .map(message -> CompletableFuture.runAsync(() -> {
-                        try {
-                            // JSON 메시지를 DTO로 변환
-                            TicketReservationRequestDto request = objectMapper.readValue(
-                                    message,
-                                    TicketReservationRequestDto.class
-                            );
+            // 배치 메시지들을 DTO로 변환
+            List<TicketReservationRequestDto> requests = new ArrayList<>();
+            for (String message : messages) {
+                try {
+                    TicketReservationRequestDto request = objectMapper.readValue(
+                            message,
+                            TicketReservationRequestDto.class
+                    );
+                    requests.add(request);
+                } catch (Exception e) {
+                    log.error("메시지 파싱 중 오류 발생: {}", message, e);
+                }
+            }
 
-                            // 티켓 예약 처리
-                            ticketReservationService.reserveTicket(request);
-                        } catch (Exception e) {
-                            log.error("메시지 처리 중 오류 발생: {}", message, e);
-                        }
-                    }, executorService))
-                    .toArray(CompletableFuture[]::new);
-
-            // 모든 비동기 작업 완료 대기
-            CompletableFuture.allOf(futures).join();
+            // Redis 파이프라이닝으로 배치 처리
+            ticketReservationService.reserveTicketBatch(requests);
 
             // 배치 단위로 커밋
             acknowledgment.acknowledge();
 
             // 처리 완료 카운트
             int count = processedCount.addAndGet(messages.size());
+
+            // 진행 상황 로그 (1만개 단위 넘어갈 때마다)
+            int lastLogged = lastLoggedCount.get();
+            int currentInterval = count / LOG_INTERVAL;
+            int lastInterval = lastLogged / LOG_INTERVAL;
+
+            if (currentInterval > lastInterval && lastLoggedCount.compareAndSet(lastLogged, count)) {
+                long currentTime = System.currentTimeMillis();
+                long elapsed = currentTime - startTime;
+                log.info("진행: {}건 처리 완료 (경과 시간: {}ms)", count, elapsed);
+            }
 
             // 목표 개수 도달 시 결과 출력
             if (count >= TARGET_COUNT) {
@@ -89,6 +93,7 @@ public class TicketReservationConsumer {
                 // 다음 테스트를 위해 초기화
                 startTime = null;
                 processedCount.set(0);
+                lastLoggedCount.set(0);
             }
 
         } catch (Exception e) {

@@ -51,9 +51,9 @@ spring:
       password:
       lettuce:
         pool:
-          max-active: 50
-          max-idle: 20
-          min-idle: 10
+          max-active: 500
+          max-idle: 100
+          min-idle: 50
       timeout: 3000ms
 
   # Kafka Configuration
