@@ -10,6 +10,9 @@ import reservation_100000_tps.dto.TicketReservationRequestDto;
 import reservation_100000_tps.service.TicketReservationService;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -24,6 +27,9 @@ public class TicketReservationConsumer {
 
     private final TicketReservationService ticketReservationService;
     private final ObjectMapper objectMapper;
+
+    // I/O 바운드 작업용 ExecutorService (Redis 호출)
+    private final ExecutorService executorService = Executors.newFixedThreadPool(100);
 
     private Long startTime = null;
     private final AtomicInteger processedCount = new AtomicInteger(0);
@@ -44,17 +50,26 @@ public class TicketReservationConsumer {
                 processedCount.set(0);
             }
 
-            // 배치로 받은 메시지들 처리
-            for (String message : messages) {
-                // JSON 메시지를 DTO로 변환
-                TicketReservationRequestDto request = objectMapper.readValue(
-                        message,
-                        TicketReservationRequestDto.class
-                );
+            // 배치로 받은 메시지들을 CompletableFuture로 병렬 처리
+            CompletableFuture<?>[] futures = messages.stream()
+                    .map(message -> CompletableFuture.runAsync(() -> {
+                        try {
+                            // JSON 메시지를 DTO로 변환
+                            TicketReservationRequestDto request = objectMapper.readValue(
+                                    message,
+                                    TicketReservationRequestDto.class
+                            );
 
-                // 티켓 예약 처리
-                ticketReservationService.reserveTicket(request);
-            }
+                            // 티켓 예약 처리
+                            ticketReservationService.reserveTicket(request);
+                        } catch (Exception e) {
+                            log.error("메시지 처리 중 오류 발생: {}", message, e);
+                        }
+                    }, executorService))
+                    .toArray(CompletableFuture[]::new);
+
+            // 모든 비동기 작업 완료 대기
+            CompletableFuture.allOf(futures).join();
 
             // 배치 단위로 커밋
             acknowledgment.acknowledge();

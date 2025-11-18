@@ -54,7 +54,7 @@ public class KafkaConsumerConfig {
         ConcurrentKafkaListenerContainerFactory<String, String> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
-        factory.setConcurrency(10);  // 동시성 증가로 처리량 향상
+        factory.setConcurrency(20);  // 동시성 증가로 처리량 향상
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);  // 배치 리스너 + 수동 ack
         factory.setBatchListener(true);  // 배치 리스너 활성화
         return factory;
