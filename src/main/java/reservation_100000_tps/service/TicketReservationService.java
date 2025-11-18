@@ -62,7 +62,7 @@ public class TicketReservationService {
             );
 
             if (result == null || result == 0) {
-                // 이미 점유된 티켓인 경우 예약 실패 (rollback 이벤트 발행 제거로 성능 향상)
+                publishRollbackEvent(request);// 이미 점유된 티켓인 경우 예약 실패 (rollback 이벤트 발행 제거로 성능 향상)
                 return;
             }
 
@@ -77,6 +77,7 @@ public class TicketReservationService {
         } catch (Exception e) {
             // Lua 스크립트는 원자적 실행이므로 실패 시 자동 롤백됨
             // 별도의 setBit(false) 불필요
+            publishRollbackEvent(request);
             throw new RuntimeException("티켓 예약 처리 중 오류가 발생했습니다.", e);
         }
     }

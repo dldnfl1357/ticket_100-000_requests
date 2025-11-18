@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import reservation_100000_tps.dto.TicketReservationRequestDto;
 import reservation_100000_tps.service.TicketReservationService;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -29,13 +30,13 @@ public class TicketReservationConsumer {
     private static final int TARGET_COUNT = 100000;
 
     /**
-     * reserve 토픽 메시지 처리
+     * reserve 토픽 메시지 배치 처리
      *
-     * @param message 예약 요청 메시지 (JSON)
-     * @param acknowledgment Kafka manual acknowledgment
+     * @param messages 예약 요청 메시지 리스트 (JSON)
+     * @param acknowledgment Kafka batch acknowledgment
      */
     @KafkaListener(topics = "reserve", groupId = "${spring.kafka.consumer.group-id}")
-    public void consumeReservation(String message, Acknowledgment acknowledgment) {
+    public void consumeReservation(List<String> messages, Acknowledgment acknowledgment) {
         try {
             // 첫 메시지 시작 시간 기록
             if (startTime == null) {
@@ -43,23 +44,26 @@ public class TicketReservationConsumer {
                 processedCount.set(0);
             }
 
-            // JSON 메시지를 DTO로 변환
-            TicketReservationRequestDto request = objectMapper.readValue(
-                    message,
-                    TicketReservationRequestDto.class
-            );
+            // 배치로 받은 메시지들 처리
+            for (String message : messages) {
+                // JSON 메시지를 DTO로 변환
+                TicketReservationRequestDto request = objectMapper.readValue(
+                        message,
+                        TicketReservationRequestDto.class
+                );
 
-            // 티켓 예약 처리
-            ticketReservationService.reserveTicket(request);
+                // 티켓 예약 처리
+                ticketReservationService.reserveTicket(request);
+            }
 
-            // 수동 커밋
+            // 배치 단위로 커밋
             acknowledgment.acknowledge();
 
             // 처리 완료 카운트
-            int count = processedCount.incrementAndGet();
+            int count = processedCount.addAndGet(messages.size());
 
             // 목표 개수 도달 시 결과 출력
-            if (count == TARGET_COUNT) {
+            if (count >= TARGET_COUNT) {
                 long endTime = System.currentTimeMillis();
                 long duration = endTime - startTime;
                 double seconds = duration / 1000.0;

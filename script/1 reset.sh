@@ -26,7 +26,7 @@ docker exec reservation-kafka kafka-topics \
   --create \
   --topic reserve \
   --bootstrap-server localhost:9092 \
-  --partitions 3 \
+  --partitions 10 \
   --replication-factor 1
 
 echo "[Kafka] reserve 토픽 삭제 완료!"
@@ -45,7 +45,7 @@ docker exec reservation-kafka kafka-topics \
   --create \
   --topic reserve_rollback \
   --bootstrap-server localhost:9092 \
-  --partitions 3 \
+  --partitions 10 \
   --replication-factor 1
 sleep 2
 echo "[Kafka] reserve_rollback 토픽 삭제 완료!"

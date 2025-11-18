@@ -41,8 +41,10 @@ public class KafkaConsumerConfig {
         config.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
         config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        config.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 500);
+        config.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 1000);  // 500 -> 1000
         config.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 300000);
+        config.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, 1);  // 최소 fetch 크기
+        config.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, 100);  // 최대 대기 시간 100ms
 
         return new DefaultKafkaConsumerFactory<>(config);
     }
@@ -53,7 +55,8 @@ public class KafkaConsumerConfig {
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
         factory.setConcurrency(10);  // 동시성 증가로 처리량 향상
-        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL);
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);  // 배치 리스너 + 수동 ack
+        factory.setBatchListener(true);  // 배치 리스너 활성화
         return factory;
     }
 }
