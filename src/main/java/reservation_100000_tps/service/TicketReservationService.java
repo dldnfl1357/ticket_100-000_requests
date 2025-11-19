@@ -14,6 +14,7 @@ import reservation_100000_tps.dto.TicketReservationRequestDto;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 티켓 예약 서비스
@@ -100,34 +101,53 @@ public class TicketReservationService {
                 }
             }
 
-            // 실패 건들 롤백 이벤트 발행
+            // 실패 건들 롤백 이벤트 발행 (완전 비동기)
             if (!failedRequests.isEmpty()) {
-                for (TicketReservationRequestDto failed : failedRequests) {
-                    publishRollbackEvent(failed);
-                }
+                // 별도 스레드에서 비동기 처리 (fire-and-forget)
+                CompletableFuture.runAsync(() -> {
+                    for (TicketReservationRequestDto failed : failedRequests) {
+                        publishRollbackEvent(failed);
+                    }
+                }).exceptionally(ex -> {
+                    log.error("롤백 이벤트 발행 중 오류 발생", ex);
+                    return null;
+                });
             }
 
         } catch (Exception e) {
             log.error("티켓 예약 배치 처리 중 오류 발생", e);
-            // 전체 배치 실패 시 모든 요청에 대해 롤백 이벤트 발행
-            for (TicketReservationRequestDto request : requests) {
-                publishRollbackEvent(request);
-            }
+            // 전체 배치 실패 시 모든 요청에 대해 롤백 이벤트 발행 (비동기)
+            List<TicketReservationRequestDto> finalRequests = requests;
+            CompletableFuture.runAsync(() -> {
+                for (TicketReservationRequestDto request : finalRequests) {
+                    publishRollbackEvent(request);
+                }
+            }).exceptionally(ex -> {
+                log.error("롤백 이벤트 발행 중 오류 발생", ex);
+                return null;
+            });
         }
     }
 
     /**
-     * 예약 실패 시 롤백 이벤트 발행
+     * 예약 실패 시 롤백 이벤트 발행 (비동기)
      *
      * @param request 예약 요청 정보
      */
     private void publishRollbackEvent(TicketReservationRequestDto request) {
         try {
             String message = objectMapper.writeValueAsString(request);
-            kafkaTemplate.send(ROLLBACK_TOPIC, message);
-            log.debug("롤백 이벤트 발행 완료 - topic: {}, message: {}", ROLLBACK_TOPIC, message);
+            // 완전 비동기 전송 (응답 대기 안 함)
+            kafkaTemplate.send(ROLLBACK_TOPIC, message)
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.error("롤백 이벤트 발행 실패 - request: {}", request, ex);
+                    } else {
+                        log.debug("롤백 이벤트 발행 완료 - topic: {}, message: {}", ROLLBACK_TOPIC, message);
+                    }
+                });
         } catch (JsonProcessingException e) {
-            log.error("롤백 이벤트 발행 실패 - request: {}", request, e);
+            log.error("롤백 메시지 직렬화 실패 - request: {}", request, e);
         }
     }
 }

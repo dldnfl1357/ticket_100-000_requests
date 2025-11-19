@@ -6,7 +6,10 @@
       "Bash(chmod:*)",
       "Bash(find:*)",
       "Bash(docker logs:*)",
-      "Bash(./gradlew compileJava:*)"
+      "Bash(./gradlew compileJava:*)",
+      "Bash(dos2unix:*)",
+      "Bash(./'3 check data.sh')",
+      "Bash(docker exec:*)"
     ],
     "deny": [],
     "ask": []
