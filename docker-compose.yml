@@ -29,30 +29,28 @@ services:
     volumes:
       - redis-data:/data
       - ./redis.conf:/usr/local/etc/redis/redis.conf
-    command: >
-      sh -c "
-          echo 'Checking THP status...' &&
-          cat /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || echo 'THP check failed - continuing anyway' &&
-          echo never > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || echo 'Cannot disable THP - need privileged mode' &&
-          echo never > /sys/kernel/mm/transparent_hugepage/defrag 2>/dev/null || true &&
-          redis-server 
-                --maxmemory 8gb 
-                --maxmemory-policy allkeys-lru
-                --appendonly no
-                --tcp-backlog 511
-                --timeout 0
-                --tcp-keepalive 300
-                --databases 1
-                --save ''
-              "
+    command:
+      - redis-server
+      - --maxmemory
+      - "4gb"
+      - --maxmemory-policy
+      - "allkeys-lru"
+      - --stop-writes-on-bgsave-error
+      - "no"
+      - --tcp-backlog
+      - "65535"
+      - --maxclients
+      - "50000"
+      - --save
+      - ""
+      - --auto-aof-rewrite-percentage
+      - "0"
+      - --client-output-buffer-limit
+      - "slave 0 0 0"
     privileged: true
     restart: unless-stopped
     sysctls:
-      - net.core.somaxconn=1024
-    ulimits:
-      nofile:
-        soft: 65536
-        hard: 65536
+      - net.core.somaxconn=65535
     deploy:
       resources:
         limits:
@@ -60,7 +58,7 @@ services:
           memory: 4G
         reservations:
           cpus: '1'
-          memory: 2G
+          memory: 3G
 
   # Zookeeper (Kafka 의존성)
   zookeeper:
